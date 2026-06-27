@@ -99,6 +99,7 @@ pip install -r requirements.txt
 
    [Settings]
    start_date = 20250101
+   min_photos_per_day = 1
    ```
 
 2. **运行程序**：
