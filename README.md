@@ -1,6 +1,6 @@
 # 照片自动整理工具
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/hxzhang2000/photo-autocopy/releases)
+[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/hxzhang2000/photo-autocopy/releases)
 [![Python](https://img.shields.io/badge/python-3.7+-green.svg)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](https://www.microsoft.com/windows)
 [![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](#许可证)
@@ -24,14 +24,17 @@
 
 ### 核心功能
 - 📁 从指定源路径递归扫描照片文件
-- 📅 提取 EXIF 拍摄日期（`DateTimeOriginal` → `Image DateTime` → 文件修改时间）
+- 📅 提取 EXIF 拍摄日期（`DateTimeOriginal` → `DateTimeDigitized` → `Image DateTime` → 文件修改时间）
 - 📂 按 `YYYYMMDD` 格式创建日期子目录并归档照片
 - 🔒 自动处理文件名冲突（追加 `_1`, `_2` 等后缀）
 - ⏱️ 仅处理指定日期之后拍摄的照片
+- 🧪 **干运行模式** — 预览将要处理的文件，不实际复制
 
 ### 命令行版本 (`photo_autocopy.py`)
-- 通过 `config.ini` 管理配置参数
-- `tqdm` 进度条实时显示处理进度
+- 支持 `--source`, `--output`, `--start-date` 命令行参数
+- `--dry-run` 预览模式，安全验证
+- `--log-file` 记录详细操作日志到文件
+- 参数优先级：命令行 > 配置文件 > 默认值
 - 适合批量处理和自动化脚本调用
 
 ### 图形界面版本 (`photo_autocopy_gui.py`)
@@ -39,6 +42,7 @@
 - 文件选择对话框，无需手动编辑配置
 - 实时日志输出和进度显示
 - 后台线程处理，界面保持响应
+- 支持停止按钮中断处理
 
 ## 快速开始
 
@@ -70,7 +74,6 @@ pip install -r requirements.txt
 
 依赖项：
 - `exifread` >= 3.0.0 — 读取 EXIF 元数据
-- `tqdm` >= 4.60.0 — 进度条显示
 - `tkinter` — GUI 界面（Python 标准库，无需额外安装）
 
 ### 方式二：使用预编译程序
@@ -97,7 +100,20 @@ pip install -r requirements.txt
 2. **运行程序**：
 
    ```bash
+   # 使用配置文件运行
    python photo_autocopy.py
+
+   # 命令行参数覆盖配置
+   python photo_autocopy.py --source D:\照片 --output D:\整理后 --start-date 20250101
+
+   # 预览模式（不实际复制）
+   python photo_autocopy.py --dry-run
+
+   # 记录操作日志
+   python photo_autocopy.py --log-file run.log
+
+   # 查看所有参数
+   python photo_autocopy.py --help
    ```
 
 3. 程序将自动扫描、提取日期、复制文件到对应日期目录。
@@ -116,6 +132,8 @@ pip install -r requirements.txt
 
 ## 配置说明
 
+### 配置文件 (`config.ini`)
+
 | 参数 | 说明 | 格式要求 |
 |------|------|----------|
 | `source_path` | 照片源文件夹路径 | 有效目录路径 |
@@ -124,17 +142,35 @@ pip install -r requirements.txt
 
 > 💡 **提示**：日期格式推荐使用 `YYYYMMDD`，使用 `YYYY-MM-DD` 时程序会显示警告。
 
+### 命令行参数
+
+| 参数 | 说明 |
+|------|------|
+| `--source SOURCE` | 照片源目录（覆盖配置文件） |
+| `--output OUTPUT` | 输出目录（覆盖配置文件） |
+| `--start-date DATE` | 开始日期（覆盖配置文件） |
+| `--dry-run` | 预览模式，只显示将要处理的文件 |
+| `--log-file FILE` | 记录操作日志到指定文件 |
+| `--config FILE` | 指定配置文件路径（默认: `config.ini`） |
+| `--help` | 显示帮助信息 |
+
+**参数优先级**：命令行参数 > 配置文件 > 默认值
+
 ## 支持的照片格式
 
-| 格式 | 扩展名 |
-|------|--------|
-| JPEG | `.jpg`, `.jpeg` |
-| PNG | `.png` |
-| GIF | `.gif` |
-| BMP | `.bmp` |
-| TIFF | `.tiff` |
-| RAW | `.raw` |
-| Nikon NEF | `.nef` |
+| 类型 | 格式 | 扩展名 |
+|------|------|--------|
+| 常见格式 | JPEG | `.jpg`, `.jpeg` |
+| | PNG | `.png` |
+| | GIF | `.gif` |
+| | BMP | `.bmp` |
+| | TIFF | `.tiff` |
+| Apple | HEIC/HEIF | `.heic`, `.heif` |
+| RAW 格式 | Generic RAW | `.raw` |
+| | Nikon | `.nef` |
+| | Sony | `.arw` |
+| | Canon | `.cr2`, `.cr3` |
+| | Adobe DNG | `.dng` |
 
 ## 工作原理
 
