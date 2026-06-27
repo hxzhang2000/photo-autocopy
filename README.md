@@ -1,144 +1,174 @@
 # 照片自动整理工具
 
-这是一个Python工具集，可以帮助您按照拍摄日期自动整理照片文件。工具提供两个版本：命令行版本和图形界面(GUI)版本，满足不同用户的需求。
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/hxzhang2000/photo-autocopy/releases)
+[![Python](https://img.shields.io/badge/python-3.7+-green.svg)](https://www.python.org/)
+[![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](https://www.microsoft.com/windows)
+[![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](#许可证)
+
+按照拍摄日期自动整理照片文件的 Python 工具集。提供命令行和图形界面两个版本，满足不同使用场景。
+
+## 目录
+
+- [功能特点](#功能特点)
+- [快速开始](#快速开始)
+- [安装方式](#安装方式)
+- [使用方法](#使用方法)
+- [配置说明](#配置说明)
+- [支持的照片格式](#支持的照片格式)
+- [工作原理](#工作原理)
+- [故障排除](#故障排除)
+- [更新日志](#更新日志)
+- [许可证](#许可证)
 
 ## 功能特点
 
-### 通用功能
-- 从指定的源路径读取照片文件
-- 提取照片的拍摄日期（从EXIF信息或文件修改日期）
-- 仅处理拍摄日期在指定开始日期之后的照片
-- 按照YYYYMMDD格式的日期创建子目录
-- 将同一天拍摄的照片复制到对应的日期子目录中
-- 自动处理文件名冲突，避免文件覆盖
-- 支持多种常见照片格式
+### 核心功能
+- 📁 从指定源路径递归扫描照片文件
+- 📅 提取 EXIF 拍摄日期（`DateTimeOriginal` → `Image DateTime` → 文件修改时间）
+- 📂 按 `YYYYMMDD` 格式创建日期子目录并归档照片
+- 🔒 自动处理文件名冲突（追加 `_1`, `_2` 等后缀）
+- ⏱️ 仅处理指定日期之后拍摄的照片
 
-### 命令行版本特点
-- 通过配置文件管理参数，无需修改代码
-- 显示实时进度条，方便了解处理进度
-- 适合批处理和自动化场景
+### 命令行版本 (`photo_autocopy.py`)
+- 通过 `config.ini` 管理配置参数
+- `tqdm` 进度条实时显示处理进度
+- 适合批量处理和自动化脚本调用
 
-### 图形界面(GUI)版本特点
-- 直观的用户界面，操作简单便捷
-- 实时显示处理进度和详细日志
-- 支持通过对话框选择文件路径
-- 提供日期格式验证和错误提示
-- 处理过程在后台线程执行，不阻塞界面
-- 无需编辑配置文件，所有参数在界面上设置
+### 图形界面版本 (`photo_autocopy_gui.py`)
+- 直观的 tkinter 界面，操作简便
+- 文件选择对话框，无需手动编辑配置
+- 实时日志输出和进度显示
+- 后台线程处理，界面保持响应
 
-## 使用方法
+## 快速开始
 
-### 1. 安装依赖
+```bash
+# 1. 克隆仓库
+git clone https://github.com/hxzhang2000/photo-autocopy.git
+cd photo-autocopy
 
-首先安装工具所需的Python库：
+# 2. 安装依赖
+pip install -r requirements.txt
+
+# 3. 编辑配置（命令行版本）
+# 修改 config.ini 中的 source_path 和 output_path
+
+# 4. 运行
+python photo_autocopy.py      # 命令行版本
+python photo_autocopy_gui.py  # 图形界面版本
+```
+
+## 安装方式
+
+### 方式一：从源码运行
+
+**环境要求：** Python 3.7+
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. 选择版本
+依赖项：
+- `exifread` >= 3.0.0 — 读取 EXIF 元数据
+- `tqdm` >= 4.60.0 — 进度条显示
+- `tkinter` — GUI 界面（Python 标准库，无需额外安装）
 
-工具提供两个版本，您可以根据自己的需求选择使用：
+### 方式二：使用预编译程序
 
-#### 命令行版本 (photo_autocopy.py)
+直接下载 `photo_autocopy.exe`，无需安装 Python 环境。
 
-1. **配置参数**
+> ⚠️ 预编译版本仅包含命令行功能。如需图形界面，请从源码运行。
 
-   编辑`config.ini`文件，根据您的需求修改以下参数：
+## 使用方法
+
+### 命令行版本
+
+1. **配置参数** — 编辑 `config.ini`：
 
    ```ini
    [Paths]
-   # 照片原始路径
-   source_path = D:\hxzhang\照片\phone-sync
-
-   # 照片整理后的输出路径
-   output_path = D:\hxzhang\照片\phone-sync-organized
+   source_path = D:\照片\原始目录
+   output_path = D:\照片\整理后
 
    [Settings]
-   # 开始整理的日期，格式支持YYYYMMDD或YYYY-MM-DD
-   start_date = 2025-10-05
+   start_date = 20250101
    ```
 
-2. **运行脚本**
-
-   执行以下命令运行照片整理工具：
+2. **运行程序**：
 
    ```bash
    python photo_autocopy.py
    ```
 
-#### 图形界面(GUI)版本 (photo_autocopy_gui.py)
+3. 程序将自动扫描、提取日期、复制文件到对应日期目录。
 
-GUI版本无需编辑配置文件，所有参数都可以在界面上直接设置：
+### 图形界面版本
 
-1. **启动程序**
-
-   执行以下命令运行带图形界面的照片整理工具：
+1. **启动程序**：
 
    ```bash
    python photo_autocopy_gui.py
    ```
 
-2. **配置参数**
-
-   在程序界面上设置以下参数：
-   - **源路径**：点击"浏览"按钮选择要整理的照片所在文件夹
-   - **输出路径**：点击"浏览"按钮选择整理后的照片保存位置
-   - **开始日期**：输入开始整理的日期（支持YYYY-MM-DD或YYYYMMDD格式）
-
-3. **开始处理**
-
-   点击"开始整理照片"按钮开始处理任务。程序会在界面上显示实时进度和处理日志。
-
-4. **查看结果**
-
-   处理完成后，程序会显示完成提示，并在日志区域显示详细的处理结果统计。
+2. 在界面上设置源路径、输出路径和开始日期
+3. 点击 **"开始整理照片"** 按钮
+4. 查看实时进度和处理日志
 
 ## 配置说明
 
-### 命令行版本配置文件说明
+| 参数 | 说明 | 格式要求 |
+|------|------|----------|
+| `source_path` | 照片源文件夹路径 | 有效目录路径 |
+| `output_path` | 整理后输出路径 | 有效目录路径（自动创建） |
+| `start_date` | 开始日期阈值 | `YYYYMMDD`（推荐）或 `YYYY-MM-DD` |
 
-命令行版本通过`config.ini`文件管理以下参数：
-
-- **source_path**: 您想要整理的照片所在的源文件夹路径
-- **output_path**: 整理后的照片将保存到的目标文件夹路径
-- **start_date**: 开始整理的日期，只处理此日期之后拍摄的照片
-  - 支持格式：YYYYMMDD（推荐）或YYYY-MM-DD
-
-### 图形界面版本配置说明
-
-图形界面版本无需配置文件，所有参数都在程序界面上直接设置：
-
-- **源路径**: 通过浏览对话框选择照片所在的源文件夹
-- **输出路径**: 通过浏览对话框选择整理后的照片保存位置
-- **开始日期**: 在输入框中直接输入日期，程序会自动验证格式
-  - 支持格式：YYYY-MM-DD或YYYYMMDD
-  - 程序会在输入时进行格式验证，并给出相应的错误提示
-
-## 注意事项
-
-1. 请确保您有足够的磁盘空间用于复制照片文件
-2. 脚本会自动跳过非照片文件
-3. 如果目标文件夹中已存在同名文件，脚本会自动添加编号以避免覆盖
-4. 如果配置文件不存在，脚本会自动创建一个包含默认设置的配置文件
-5. 日期子目录使用YYYYMMDD格式命名（如20230515）
+> 💡 **提示**：日期格式推荐使用 `YYYYMMDD`，使用 `YYYY-MM-DD` 时程序会显示警告。
 
 ## 支持的照片格式
 
-脚本支持以下常见的照片文件格式：
-- .jpg, .jpeg
-- .png
-- .gif
-- .bmp
-- .tiff
-- .raw
-- .nef
+| 格式 | 扩展名 |
+|------|--------|
+| JPEG | `.jpg`, `.jpeg` |
+| PNG | `.png` |
+| GIF | `.gif` |
+| BMP | `.bmp` |
+| TIFF | `.tiff` |
+| RAW | `.raw` |
+| Nikon NEF | `.nef` |
+
+## 工作原理
+
+```
+源目录照片 → 读取 EXIF 日期 → 过滤日期范围 → 创建日期目录 → 复制文件
+                                    ↓
+                            无 EXIF 则用文件修改时间
+```
+
+1. 递归遍历源目录所有文件
+2. 筛选支持的照片格式
+3. 提取拍摄日期（优先 EXIF，降级用文件 mtime）
+4. 跳过早于 `start_date` 的照片
+5. 复制到 `output_path/YYYYMMDD/` 目录
+6. 同名文件自动添加序号后缀
 
 ## 故障排除
 
-如果遇到问题，请检查以下几点：
+| 问题 | 解决方案 |
+|------|----------|
+| `ModuleNotFoundError: exifread` | 运行 `pip install -r requirements.txt` |
+| 源路径不存在 | 检查 `config.ini` 中的 `source_path` 配置 |
+| 日期格式错误 | 使用 `YYYYMMDD` 格式（如 `20250101`） |
+| 文件复制失败 | 检查源路径读取权限和输出路径写入权限 |
+| 照片未被处理 | 确认文件扩展名在支持列表中 |
 
-1. 确保Python已正确安装
-2. 确保已安装所有依赖库
-3. 检查配置文件中的路径是否正确
-4. 确保您对源路径有读取权限，对目标路径有写入权限
+## 更新日志
+
+详见 [CHANGELOG.md](CHANGELOG.md)
+
+## 许可证
+
+本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
+
+---
+
+**作者**: hxzhang2000 | **仓库**: [github.com/hxzhang2000/photo-autocopy](https://github.com/hxzhang2000/photo-autocopy)
