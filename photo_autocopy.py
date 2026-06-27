@@ -111,9 +111,28 @@ def main():
             print("\n已取消操作。")
             sys.exit(0)
     
+    # 进度回调函数
+    last_percent = [-1]  # 使用列表以便在闭包中修改
+    
+    def progress_callback(current: int, total: int, filename: str) -> None:
+        """显示处理进度"""
+        if total == 0:
+            return
+        
+        percent = int(current * 100 / total)
+        # 每 5% 或第一个/最后一个文件时显示
+        if percent != last_percent[0] and (percent % 5 == 0 or current == 1 or current == total):
+            last_percent[0] = percent
+            # 截断过长的文件名
+            display_name = filename if len(filename) <= 30 else filename[:27] + "..."
+            print(f"\r进度: [{percent:3d}%] {current}/{total} - {display_name}", end="", flush=True)
+    
     # 执行整理
-    organizer = PhotoOrganizer(config)
+    organizer = PhotoOrganizer(config, callback=progress_callback)
     result = organizer.organize()
+    
+    # 换行（进度条结束后）
+    print()
     
     # 返回退出码
     if result.failed_files > 0:
