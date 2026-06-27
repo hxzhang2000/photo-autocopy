@@ -11,7 +11,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from typing import Optional
 
-from core import AppConfig, PhotoOrganizer, PHOTO_EXTENSIONS
+from core import AppConfig, PhotoOrganizer
 
 
 class PhotoAutocopyGUI:

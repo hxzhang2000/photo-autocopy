@@ -323,7 +323,6 @@ class PhotoOrganizer:
         
         # 构建 PhotoGroup 列表
         groups: list[PhotoGroup] = []
-        used_files: set[str] = set()
         
         # 第一轮：按基础名称精确匹配
         for base_name, files in name_groups.items():
@@ -336,9 +335,6 @@ class PhotoOrganizer:
                 jpeg_files=jpeg_files
             )
             groups.append(group)
-            
-            for f in files:
-                used_files.add(f.path)
         
         # 第二轮：尝试按时间戳匹配未配对的 RAW 文件
         unmatched_raw = [

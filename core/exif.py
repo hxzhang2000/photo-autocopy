@@ -79,11 +79,45 @@ def is_jpeg_file(filename: str) -> bool:
     return ext in JPEG_EXTENSIONS
 
 
+def get_photo_info(file_path: str) -> tuple[Optional[str], Optional[datetime.datetime]]:
+    """
+    从照片文件中提取拍摄日期和时间戳（单次 EXIF 读取）
+    
+    优先从 EXIF 读取，降级使用文件修改时间。
+    
+    Args:
+        file_path: 照片文件路径
+        
+    Returns:
+        (日期字符串 YYYYMMDD, datetime 时间戳) 元组，失败返回 (None, None)
+    """
+    try:
+        # 尝试从 EXIF 读取
+        exif_result = _read_exif_info(file_path)
+        if exif_result:
+            date_str, timestamp = exif_result
+            # 确保两个值都有
+            if date_str and timestamp:
+                return date_str, timestamp
+        
+        # 降级使用文件修改时间
+        mtime = os.path.getmtime(file_path)
+        mtime_dt = datetime.datetime.fromtimestamp(mtime)
+        mtime_date = mtime_dt.strftime('%Y%m%d')
+        
+        # 如果 EXIF 只读到了部分数据，补全
+        date_str = exif_result[0] if exif_result else mtime_date
+        timestamp = exif_result[1] if exif_result else mtime_dt
+        
+        return date_str or mtime_date, timestamp or mtime_dt
+        
+    except Exception:
+        return None, None
+
+
 def get_photo_date(file_path: str) -> Optional[str]:
     """
     从照片文件中提取拍摄日期
-    
-    优先从 EXIF 读取，降级使用文件修改时间。
     
     Args:
         file_path: 照片文件路径
@@ -91,66 +125,45 @@ def get_photo_date(file_path: str) -> Optional[str]:
     Returns:
         日期字符串（YYYYMMDD 格式），失败返回 None
     """
-    try:
-        # 尝试从 EXIF 读取日期
-        exif_date = _read_exif_date(file_path)
-        if exif_date:
-            return exif_date
-        
-        # 降级使用文件修改时间
-        return _get_mtime_date(file_path)
-        
-    except Exception as e:
-        print(f"无法提取文件日期 {Path(file_path).name}: {e}")
-        return None
+    date_str, _ = get_photo_info(file_path)
+    return date_str
 
 
 def get_photo_timestamp(file_path: str) -> Optional[datetime.datetime]:
     """
     从照片文件中提取精确拍摄时间戳
     
-    用于 RAW+JPEG 配对，需要精确到秒级。
-    优先从 EXIF 读取，降级使用文件修改时间。
-    
     Args:
         file_path: 照片文件路径
         
     Returns:
         datetime 对象，失败返回 None
     """
-    try:
-        # 尝试从 EXIF 读取时间戳
-        timestamp = _read_exif_timestamp(file_path)
-        if timestamp:
-            return timestamp
-        
-        # 降级使用文件修改时间
-        mtime = os.path.getmtime(file_path)
-        return datetime.datetime.fromtimestamp(mtime)
-        
-    except Exception:
-        return None
+    _, timestamp = get_photo_info(file_path)
+    return timestamp
 
 
-def _read_exif_timestamp(file_path: str) -> Optional[datetime.datetime]:
+def _read_exif_info(file_path: str) -> Optional[tuple[Optional[str], Optional[datetime.datetime]]]:
     """
-    从 EXIF 读取精确时间戳
+    从 EXIF 读取日期和时间戳（内部函数）
     
     Args:
         file_path: 照片文件路径
         
     Returns:
-        datetime 对象，失败返回 None
+        (日期字符串, datetime 时间戳) 元组，失败返回 None
     """
     try:
         with open(file_path, 'rb') as f:
             tags = exifread.process_file(f, details=False)
         
-        # 按优先级尝试获取时间戳
+        # 按优先级尝试获取日期
         for tag_name in DATE_TAGS:
             if tag_name in tags:
-                date_str = str(tags[tag_name])
-                return _parse_exif_timestamp(date_str)
+                raw_str = str(tags[tag_name])
+                date_str = _parse_exif_date(raw_str)
+                timestamp = _parse_exif_timestamp(raw_str)
+                return date_str, timestamp
         
         return None
         
@@ -171,35 +184,8 @@ def _parse_exif_timestamp(date_str: str) -> Optional[datetime.datetime]:
         datetime 对象，解析失败返回 None
     """
     try:
-        # 格式：YYYY:MM:DD HH:MM:SS
         return datetime.datetime.strptime(date_str, '%Y:%m:%d %H:%M:%S')
     except ValueError:
-        return None
-
-
-def _read_exif_date(file_path: str) -> Optional[str]:
-    """
-    从 EXIF 读取日期
-    
-    Args:
-        file_path: 照片文件路径
-        
-    Returns:
-        日期字符串（YYYYMMDD 格式），失败返回 None
-    """
-    try:
-        with open(file_path, 'rb') as f:
-            tags = exifread.process_file(f, details=False)
-        
-        # 按优先级尝试获取日期
-        for tag_name in DATE_TAGS:
-            if tag_name in tags:
-                date_str = str(tags[tag_name])
-                return _parse_exif_date(date_str)
-        
-        return None
-        
-    except Exception:
         return None
 
 
@@ -233,23 +219,6 @@ def _parse_exif_date(date_str: str) -> Optional[str]:
         return result
         
     except (ValueError, IndexError):
-        return None
-
-
-def _get_mtime_date(file_path: str) -> Optional[str]:
-    """
-    获取文件修改日期
-    
-    Args:
-        file_path: 文件路径
-        
-    Returns:
-        YYYYMMDD 格式日期
-    """
-    try:
-        mtime = os.path.getmtime(file_path)
-        return datetime.datetime.fromtimestamp(mtime).strftime('%Y%m%d')
-    except Exception:
         return None
 
 

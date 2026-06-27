@@ -116,6 +116,10 @@ class AppConfig:
         except ValueError as e:
             errors.append(f"日期格式错误: {e}")
         
+        # 验证每日最少数量
+        if self.min_photos_per_day < 1:
+            errors.append("每日最少数量必须大于等于 1")
+        
         return errors
     
     def parse_start_date(self) -> datetime.datetime:
