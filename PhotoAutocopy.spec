@@ -1,12 +1,17 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import sys
+import os
+
+# 添加项目根目录到 pathex
+root_dir = os.path.dirname(os.path.abspath(SPEC))
 
 a = Analysis(
     ['photo_autocopy.py'],
-    pathex=[],
+    pathex=[root_dir],
     binaries=[],
     datas=[],
-    hiddenimports=[],
+    hiddenimports=['core', 'core.config', 'core.exif', 'core.organizer'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
