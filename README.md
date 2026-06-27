@@ -28,6 +28,7 @@
 - 📂 按 `YYYYMMDD` 格式创建日期子目录并归档照片
 - 🔒 自动处理文件名冲突（追加 `_1`, `_2` 等后缀）
 - ⏱️ 仅处理指定日期之后拍摄的照片
+- 🔢 **每日最少数量** — 低于指定数量的日期将被跳过
 - 🧪 **干运行模式** — 预览将要处理的文件，不实际复制
 - 🔗 **RAW+JPEG 配对** — 自动识别同一拍摄的 RAW 和 JPEG 文件，确保它们在同一目录
 
@@ -142,6 +143,7 @@ pip install -r requirements.txt
 | `source_path` | 照片源文件夹路径 | 有效目录路径 |
 | `output_path` | 整理后输出路径 | 有效目录路径（自动创建） |
 | `start_date` | 开始日期阈值 | `YYYYMMDD`（推荐）或 `YYYY-MM-DD` |
+| `min_photos_per_day` | 每日最少照片数量 | 正整数（默认: 1，即不过滤） |
 
 > 💡 **提示**：日期格式推荐使用 `YYYYMMDD`，使用 `YYYY-MM-DD` 时程序会显示警告。
 
@@ -152,6 +154,7 @@ pip install -r requirements.txt
 | `--source SOURCE` | 照片源目录（覆盖配置文件） |
 | `--output OUTPUT` | 输出目录（覆盖配置文件） |
 | `--start-date DATE` | 开始日期（覆盖配置文件） |
+| `--min-photos NUM` | 每日最少照片数量（覆盖配置文件） |
 | `--dry-run` | 预览模式，只显示将要处理的文件 |
 | `--log-file FILE` | 记录操作日志到指定文件 |
 | `--config FILE` | 指定配置文件路径（默认: `config.ini`） |

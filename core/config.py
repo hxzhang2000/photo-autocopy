@@ -17,6 +17,7 @@ from typing import Optional
 DEFAULT_SOURCE_PATH = r"D:\照片\原始目录"
 DEFAULT_OUTPUT_PATH = r"D:\照片\整理后"
 DEFAULT_START_DATE = "20250101"
+DEFAULT_MIN_PHOTOS_PER_DAY = 1  # 每日最少照片数，默认为1（不过滤）
 
 
 @dataclass
@@ -26,6 +27,7 @@ class AppConfig:
     source_path: str = DEFAULT_SOURCE_PATH
     output_path: str = DEFAULT_OUTPUT_PATH
     start_date: str = DEFAULT_START_DATE
+    min_photos_per_day: int = DEFAULT_MIN_PHOTOS_PER_DAY
     dry_run: bool = False
     log_file: Optional[str] = None
     
@@ -57,6 +59,7 @@ class AppConfig:
             # 加载设置配置
             if 'Settings' in config:
                 app_config.start_date = config['Settings'].get('start_date', DEFAULT_START_DATE)
+                app_config.min_photos_per_day = int(config['Settings'].get('min_photos_per_day', DEFAULT_MIN_PHOTOS_PER_DAY))
                 
         except Exception as e:
             print(f"警告: 读取配置文件失败: {e}")
@@ -79,6 +82,7 @@ class AppConfig:
         
         config['Settings'] = {
             'start_date': self.start_date,
+            'min_photos_per_day': str(self.min_photos_per_day),
         }
         
         try:

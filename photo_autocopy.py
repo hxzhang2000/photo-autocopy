@@ -41,6 +41,12 @@ def parse_args() -> argparse.Namespace:
     )
     
     parser.add_argument(
+        '--min-photos',
+        type=int,
+        help='每日最少照片数量，低于此数量的日期将被跳过'
+    )
+    
+    parser.add_argument(
         '--dry-run',
         action='store_true',
         help='预览模式，只显示将要处理的文件，不实际复制'
@@ -74,6 +80,8 @@ def main():
         config.output_path = args.output
     if args.start_date:
         config.start_date = args.start_date
+    if args.min_photos is not None:
+        config.min_photos_per_day = args.min_photos
     
     config.dry_run = args.dry_run
     config.log_file = args.log_file
@@ -91,12 +99,13 @@ def main():
     print("=" * 40)
     print("照片自动整理工具")
     print("-" * 40)
-    print(f"源目录:   {config.source_path}")
-    print(f"输出目录: {config.output_path}")
-    print(f"开始日期: {config.start_date}")
+    print(f"源目录:       {config.source_path}")
+    print(f"输出目录:     {config.output_path}")
+    print(f"开始日期:     {config.start_date}")
+    print(f"每日最少数量: {config.min_photos_per_day}")
     
     if config.dry_run:
-        print("运行模式: 预览模式（不复制文件）")
+        print("运行模式:     预览模式（不复制文件）")
     
     print("=" * 40)
     print()

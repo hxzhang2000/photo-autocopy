@@ -31,6 +31,7 @@ class PhotoAutocopyGUI:
         self.source_path = tk.StringVar()
         self.output_path = tk.StringVar()
         self.start_date = tk.StringVar()
+        self.min_photos = tk.StringVar(value="1")
         self.dry_run = tk.BooleanVar(value=False)
         self.is_processing = False
         self.process_thread: Optional[threading.Thread] = None
@@ -48,15 +49,22 @@ class PhotoAutocopyGUI:
         self.source_path.set(config.source_path)
         self.output_path.set(config.output_path)
         self.start_date.set(config.start_date)
+        self.min_photos.set(str(config.min_photos_per_day))
         
         self._log("已从配置文件加载参数")
     
     def _save_config(self) -> None:
         """保存当前参数到配置文件"""
+        try:
+            min_photos = int(self.min_photos.get())
+        except ValueError:
+            min_photos = 1
+        
         config = AppConfig(
             source_path=self.source_path.get(),
             output_path=self.output_path.get(),
             start_date=self.start_date.get(),
+            min_photos_per_day=min_photos,
         )
         config.save_ini('config.ini')
         self._log("已保存配置到 config.ini")
@@ -106,6 +114,17 @@ class PhotoAutocopyGUI:
         )
         ttk.Label(config_frame, text="(YYYYMMDD 或 YYYY-MM-DD)", font=self.default_font).grid(
             row=2, column=2, sticky=tk.W, pady=5
+        )
+        
+        # 每日最少照片数
+        ttk.Label(config_frame, text="每日最少数量:", font=self.default_font).grid(
+            row=3, column=0, sticky=tk.W, pady=5
+        )
+        ttk.Entry(config_frame, textvariable=self.min_photos, width=10, font=self.default_font).grid(
+            row=3, column=1, padx=5, pady=5, sticky=tk.W
+        )
+        ttk.Label(config_frame, text="(低于此数量的日期将被跳过)", font=self.default_font).grid(
+            row=3, column=2, sticky=tk.W, pady=5
         )
         
         # 配置列权重
@@ -220,11 +239,22 @@ class PhotoAutocopyGUI:
             messagebox.showwarning("警告", "任务正在执行中！")
             return
         
+        # 验证 min_photos
+        try:
+            min_photos = int(self.min_photos.get())
+            if min_photos < 1:
+                messagebox.showerror("配置错误", "每日最少数量必须大于等于 1")
+                return
+        except ValueError:
+            messagebox.showerror("配置错误", "每日最少数量必须是整数")
+            return
+        
         # 创建配置
         config = AppConfig(
             source_path=self.source_path.get(),
             output_path=self.output_path.get(),
             start_date=self.start_date.get(),
+            min_photos_per_day=min_photos,
             dry_run=self.dry_run.get(),
         )
         
@@ -254,6 +284,7 @@ class PhotoAutocopyGUI:
         self._log(f"源目录: {config.source_path}")
         self._log(f"输出目录: {config.output_path}")
         self._log(f"开始日期: {config.start_date}")
+        self._log(f"每日最少数量: {config.min_photos_per_day}")
         if config.dry_run:
             self._log("运行模式: 预览模式")
         self._log("=" * 40)

@@ -201,6 +201,11 @@ class PhotoOrganizer:
         self.logger.info(f"共发现 {self.result.total_files} 个文件")
         self.logger.info(f"识别为 {len(photo_groups)} 个照片组（含 RAW+JPEG 配对）")
         
+        # 按日期过滤（根据最小照片数量）
+        if self.config.min_photos_per_day > 1:
+            photo_groups = self._filter_by_date_count(photo_groups, start_date)
+            self.logger.info(f"过滤后剩余 {len(photo_groups)} 个照片组")
+        
         # 处理文件组
         processed_count = 0
         for group in photo_groups:
@@ -224,6 +229,65 @@ class PhotoOrganizer:
         self._log_summary()
         
         return self.result
+    
+    def _filter_by_date_count(
+        self,
+        groups: list[PhotoGroup],
+        start_date: datetime.datetime
+    ) -> list[PhotoGroup]:
+        """
+        按日期照片数量过滤
+        
+        只保留照片数量 >= min_photos_per_day 的日期。
+        
+        Args:
+            groups: 照片组列表
+            start_date: 开始日期阈值
+            
+        Returns:
+            过滤后的照片组列表
+        """
+        # 按日期分组统计
+        date_groups: dict[str, list[PhotoGroup]] = defaultdict(list)
+        date_counts: dict[str, int] = defaultdict(int)
+        
+        for group in groups:
+            primary = group.primary_file
+            if not primary.date:
+                continue
+            
+            # 检查日期是否在范围内
+            try:
+                photo_date_obj = datetime.datetime.strptime(primary.date, '%Y%m%d')
+                if photo_date_obj < start_date:
+                    continue
+            except ValueError:
+                continue
+            
+            date_groups[primary.date].append(group)
+            date_counts[primary.date] += len(group.all_files)
+        
+        # 过滤掉数量不足的日期
+        filtered_groups: list[PhotoGroup] = []
+        skipped_dates: list[str] = []
+        
+        for date, count in date_counts.items():
+            if count >= self.config.min_photos_per_day:
+                filtered_groups.extend(date_groups[date])
+            else:
+                skipped_dates.append(f"{date}({count}张)")
+        
+        if skipped_dates:
+            self.logger.info(
+                f"跳过照片数量不足的日期: {', '.join(skipped_dates)} "
+                f"(最少需要 {self.config.min_photos_per_day} 张)"
+            )
+        
+        # 统计跳过的文件数
+        skipped_files = sum(len(g.all_files) for g in groups) - sum(len(g.all_files) for g in filtered_groups)
+        self.result.skipped_files += skipped_files
+        
+        return filtered_groups
     
     def _should_stop(self) -> bool:
         """检查是否应该停止"""
