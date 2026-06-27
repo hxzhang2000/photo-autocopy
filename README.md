@@ -34,6 +34,7 @@
 - 支持 `--source`, `--output`, `--start-date` 命令行参数
 - `--dry-run` 预览模式，安全验证
 - `--log-file` 记录详细操作日志到文件
+- `tqdm` 进度条实时显示处理进度和速度
 - 参数优先级：命令行 > 配置文件 > 默认值
 - 适合批量处理和自动化脚本调用
 
@@ -74,6 +75,7 @@ pip install -r requirements.txt
 
 依赖项：
 - `exifread` >= 3.0.0 — 读取 EXIF 元数据
+- `tqdm` >= 4.60.0 — 进度条显示
 - `tkinter` — GUI 界面（Python 标准库，无需额外安装）
 
 ### 方式二：使用预编译程序

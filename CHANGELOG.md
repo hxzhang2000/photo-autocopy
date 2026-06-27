@@ -35,24 +35,27 @@
 - **GUI 增强**
   - 添加"停止"按钮，支持中断处理
   - 线程安全的 UI 更新
-  - 移除未使用的 tqdm 依赖
 
 ### 优化
 
 - **EXIF 读取性能**
-  - 使用 `stop_tag='EXIF DateTimeOriginal'` 只读取必要标签
   - 设置 `details=False` 跳过缩略图读取
+  - 移除 `stop_tag` 以确保所有日期标签都能被读取
   - 日期标签优先级：`DateTimeOriginal` → `DateTimeDigitized` → `Image DateTime`
+
+- **CLI 进度显示**
+  - 使用 `tqdm` 显示进度条，包含百分比、处理速度和当前文件名
+  - 实时更新，无需等待处理完成
 
 - **代码质量**
   - 消除 CLI 和 GUI 之间的代码重复
   - 使用 `pathlib.Path` 替代部分 `os.path` 操作
   - 使用 `os.makedirs(exist_ok=True)` 简化目录创建
   - 改进异常处理，捕获具体异常类型
-
-### 移除
-
-- 移除 `tqdm` 依赖（CLI 改用核心模块内置进度回调）
+  - 修复 `datetime` 导入位置（移至文件顶部）
+  - 修复类型注解（移除不必要的字符串注解）
+  - 重构停止功能：使用 `stop_callback` 替代修改私有方法
+  - 修复日志处理器重复添加问题（使用实例级 logger）
 
 ### 已知限制
 

@@ -6,6 +6,7 @@
 """
 
 import os
+import datetime
 import configparser
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -113,7 +114,7 @@ class AppConfig:
         
         return errors
     
-    def parse_start_date(self) -> 'datetime.datetime':
+    def parse_start_date(self) -> datetime.datetime:
         """
         解析开始日期
         
@@ -123,8 +124,6 @@ class AppConfig:
         Raises:
             ValueError: 日期格式无效
         """
-        import datetime
-        
         # 尝试 YYYYMMDD 格式
         try:
             return datetime.datetime.strptime(self.start_date, '%Y%m%d')
@@ -138,36 +137,3 @@ class AppConfig:
             pass
         
         raise ValueError(f"无效的日期格式: {self.start_date}，请使用 YYYYMMDD 或 YYYY-MM-DD")
-    
-    def get_app_directory(self) -> str:
-        """
-        获取程序所在目录（支持 PyInstaller 打包）
-        
-        Returns:
-            程序所在目录路径
-        """
-        import sys
-        
-        try:
-            if hasattr(sys, '_MEIPASS') or getattr(sys, 'frozen', False):
-                # PyInstaller 打包后
-                exe_path = os.path.realpath(sys.executable)
-                app_dir = os.path.dirname(exe_path)
-                
-                # 检查是否是临时目录
-                if 'temp' in app_dir.lower() or 'tmp' in app_dir.lower():
-                    if len(sys.argv) > 0:
-                        real_exe_path = os.path.abspath(sys.argv[0])
-                        app_dir = os.path.dirname(real_exe_path)
-                        
-                        if 'temp' in app_dir.lower() or 'tmp' in app_dir.lower():
-                            app_dir = os.getcwd()
-            else:
-                # 脚本模式运行
-                app_dir = os.path.dirname(os.path.abspath(__file__))
-                # 向上一级到项目根目录
-                app_dir = os.path.dirname(app_dir)
-            
-            return app_dir
-        except Exception:
-            return os.getcwd()

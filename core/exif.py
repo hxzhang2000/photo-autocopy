@@ -86,12 +86,8 @@ def _read_exif_date(file_path: str) -> Optional[str]:
     """
     try:
         with open(file_path, 'rb') as f:
-            # 使用 stop_tag 优化：只读取到第一个日期标签就停止
-            tags = exifread.process_file(
-                f,
-                stop_tag='EXIF DateTimeOriginal',
-                details=False  # 不读取缩略图
-            )
+            # 使用 details=False 跳过缩略图读取，提升性能
+            tags = exifread.process_file(f, details=False)
         
         # 按优先级尝试获取日期
         for tag_name in DATE_TAGS:

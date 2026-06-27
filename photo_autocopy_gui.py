@@ -275,20 +275,12 @@ class PhotoAutocopyGUI:
     def _process_worker(self, config: AppConfig) -> None:
         """处理工作线程"""
         try:
-            # 创建自定义的整理器，使用回调更新进度
-            organizer = PhotoOrganizer(config, callback=self._update_progress)
-            
-            # 修改整理器以支持停止标志
-            original_collect = organizer._collect_files
-            
-            def collect_with_stop():
-                for item in original_collect():
-                    if self._stop_flag:
-                        self._log("已停止处理")
-                        return
-                    yield item
-            
-            organizer._collect_files = collect_with_stop
+            # 创建整理器，使用回调更新进度和检查停止
+            organizer = PhotoOrganizer(
+                config,
+                callback=self._update_progress,
+                stop_callback=lambda: self._stop_flag
+            )
             
             # 执行整理
             result = organizer.organize()

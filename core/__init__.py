@@ -9,7 +9,7 @@ photo-autocopy 核心模块
 
 from .config import AppConfig
 from .exif import get_photo_date, is_photo_file, PHOTO_EXTENSIONS
-from .organizer import PhotoOrganizer
+from .organizer import PhotoOrganizer, OrganizeResult
 
 __all__ = [
     'AppConfig',
@@ -17,4 +17,5 @@ __all__ = [
     'is_photo_file',
     'PHOTO_EXTENSIONS',
     'PhotoOrganizer',
+    'OrganizeResult',
 ]

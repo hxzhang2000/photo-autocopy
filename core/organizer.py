@@ -26,6 +26,7 @@ class OrganizeResult:
     processed_files: int = 0
     skipped_files: int = 0
     failed_files: int = 0
+    stopped: bool = False
     start_time: datetime.datetime = field(default_factory=datetime.datetime.now)
     end_time: Optional[datetime.datetime] = None
     
@@ -59,49 +60,57 @@ class PhotoOrganizer:
     按拍摄日期将照片整理到 YYYYMMDD 子目录。
     """
     
-    def __init__(self, config: AppConfig, callback: Optional[Callable] = None):
+    def __init__(
+        self,
+        config: AppConfig,
+        callback: Optional[Callable[[int, int, str], None]] = None,
+        stop_callback: Optional[Callable[[], bool]] = None
+    ):
         """
         初始化整理器
         
         Args:
             config: 应用配置
             callback: 进度回调函数 callback(current, total, filename)
+            stop_callback: 停止检查回调，返回 True 表示应停止
         """
         self.config = config
         self.callback = callback
+        self.stop_callback = stop_callback
         self.result = OrganizeResult()
         self._setup_logging()
     
     def _setup_logging(self) -> None:
         """配置日志"""
-        self.logger = logging.getLogger('PhotoOrganizer')
+        # 使用唯一的 logger 名称避免冲突
+        logger_name = f'PhotoOrganizer_{id(self)}'
+        self.logger = logging.getLogger(logger_name)
         self.logger.setLevel(logging.INFO)
         
-        # 清除现有处理器
-        self.logger.handlers.clear()
-        
-        # 控制台处理器
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
-        formatter = logging.Formatter('%(message)s')
-        console_handler.setFormatter(formatter)
-        self.logger.addHandler(console_handler)
-        
-        # 文件处理器（如果配置了日志文件）
-        if self.config.log_file:
-            try:
-                file_handler = logging.FileHandler(
-                    self.config.log_file,
-                    encoding='utf-8'
-                )
-                file_handler.setLevel(logging.DEBUG)
-                file_formatter = logging.Formatter(
-                    '%(asctime)s - %(levelname)s - %(message)s'
-                )
-                file_handler.setFormatter(file_formatter)
-                self.logger.addHandler(file_handler)
-            except Exception as e:
-                self.logger.warning(f"无法创建日志文件: {e}")
+        # 避免重复添加处理器
+        if not self.logger.handlers:
+            # 控制台处理器
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(logging.INFO)
+            formatter = logging.Formatter('%(message)s')
+            console_handler.setFormatter(formatter)
+            self.logger.addHandler(console_handler)
+            
+            # 文件处理器（如果配置了日志文件）
+            if self.config.log_file:
+                try:
+                    file_handler = logging.FileHandler(
+                        self.config.log_file,
+                        encoding='utf-8'
+                    )
+                    file_handler.setLevel(logging.DEBUG)
+                    file_formatter = logging.Formatter(
+                        '%(asctime)s - %(levelname)s - %(message)s'
+                    )
+                    file_handler.setFormatter(file_formatter)
+                    self.logger.addHandler(file_handler)
+                except Exception as e:
+                    self.logger.warning(f"无法创建日志文件: {e}")
     
     def organize(self) -> OrganizeResult:
         """
@@ -135,6 +144,12 @@ class PhotoOrganizer:
         
         # 处理文件
         for i, file_path in enumerate(all_files):
+            # 检查是否需要停止
+            if self._should_stop():
+                self.result.stopped = True
+                self.logger.info("用户已停止处理")
+                break
+            
             self._report_progress(i + 1, self.result.total_files, Path(file_path).name)
             
             if not is_photo_file(file_path):
@@ -147,6 +162,12 @@ class PhotoOrganizer:
         self._log_summary()
         
         return self.result
+    
+    def _should_stop(self) -> bool:
+        """检查是否应该停止"""
+        if self.stop_callback:
+            return self.stop_callback()
+        return False
     
     def _collect_files(self):
         """
@@ -273,5 +294,7 @@ class PhotoOrganizer:
         self.logger.info(f"成功处理:     {r.processed_files}")
         self.logger.info(f"跳过文件:     {r.skipped_files}")
         self.logger.info(f"失败文件:     {r.failed_files}")
+        if r.stopped:
+            self.logger.info("状态:         用户已停止")
         self.logger.info(f"耗时:         {r.elapsed_str}")
         self.logger.info("=" * 40)
