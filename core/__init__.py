@@ -8,14 +8,21 @@ photo-autocopy 核心模块
 """
 
 from .config import AppConfig
-from .exif import get_photo_date, is_photo_file, PHOTO_EXTENSIONS
+from .exif import (
+    get_photo_date, is_photo_file, PHOTO_EXTENSIONS,
+    is_raw_file, is_jpeg_file, RAW_EXTENSIONS, JPEG_EXTENSIONS
+)
 from .organizer import PhotoOrganizer, OrganizeResult
 
 __all__ = [
     'AppConfig',
     'get_photo_date',
     'is_photo_file',
+    'is_raw_file',
+    'is_jpeg_file',
     'PHOTO_EXTENSIONS',
+    'RAW_EXTENSIONS',
+    'JPEG_EXTENSIONS',
     'PhotoOrganizer',
     'OrganizeResult',
 ]

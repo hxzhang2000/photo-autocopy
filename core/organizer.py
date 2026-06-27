@@ -2,7 +2,7 @@
 照片整理核心逻辑模块
 
 提供 PhotoOrganizer 类用于按日期整理照片。
-支持干运行模式和操作日志记录。
+支持干运行模式、操作日志记录和 RAW+JPEG 配对。
 """
 
 import os
@@ -12,9 +12,13 @@ import logging
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Callable, Optional
+from collections import defaultdict
 
 from .config import AppConfig
-from .exif import is_photo_file, get_photo_date
+from .exif import (
+    is_photo_file, is_raw_file, is_jpeg_file,
+    get_photo_date, get_photo_timestamp, get_file_base_name
+)
 
 
 @dataclass
@@ -26,6 +30,7 @@ class OrganizeResult:
     processed_files: int = 0
     skipped_files: int = 0
     failed_files: int = 0
+    paired_files: int = 0  # RAW+JPEG 配对数量
     stopped: bool = False
     start_time: datetime.datetime = field(default_factory=datetime.datetime.now)
     end_time: Optional[datetime.datetime] = None
@@ -53,12 +58,69 @@ class OrganizeResult:
             return f"{seconds}秒"
 
 
+@dataclass
+class PhotoFile:
+    """照片文件信息"""
+    
+    path: str
+    filename: str
+    base_name: str
+    is_raw: bool
+    is_jpeg: bool
+    timestamp: Optional[datetime.datetime] = None
+    date: Optional[str] = None
+    
+    @classmethod
+    def from_path(cls, file_path: str) -> 'PhotoFile':
+        """从文件路径创建 PhotoFile"""
+        filename = Path(file_path).name
+        return cls(
+            path=file_path,
+            filename=filename,
+            base_name=get_file_base_name(filename),
+            is_raw=is_raw_file(filename),
+            is_jpeg=is_jpeg_file(filename),
+            timestamp=get_photo_timestamp(file_path),
+            date=get_photo_date(file_path)
+        )
+
+
+@dataclass
+class PhotoGroup:
+    """照片分组（RAW+JPEG 配对）"""
+    
+    base_name: str
+    raw_files: list[PhotoFile] = field(default_factory=list)
+    jpeg_files: list[PhotoFile] = field(default_factory=list)
+    
+    @property
+    def is_paired(self) -> bool:
+        """是否为 RAW+JPEG 配对"""
+        return len(self.raw_files) > 0 and len(self.jpeg_files) > 0
+    
+    @property
+    def primary_file(self) -> PhotoFile:
+        """获取主文件（优先 JPEG，用于确定日期）"""
+        if self.jpeg_files:
+            return self.jpeg_files[0]
+        return self.raw_files[0]
+    
+    @property
+    def all_files(self) -> list[PhotoFile]:
+        """获取所有文件"""
+        return self.jpeg_files + self.raw_files
+
+
 class PhotoOrganizer:
     """
     照片整理器
     
     按拍摄日期将照片整理到 YYYYMMDD 子目录。
+    支持 RAW+JPEG 配对，确保同一拍摄的文件在同一目录。
     """
+    
+    # 时间戳容差（秒），用于判断是否为同一拍摄
+    TIMESTAMP_TOLERANCE_SECONDS = 5
     
     def __init__(
         self,
@@ -82,21 +144,17 @@ class PhotoOrganizer:
     
     def _setup_logging(self) -> None:
         """配置日志"""
-        # 使用唯一的 logger 名称避免冲突
         logger_name = f'PhotoOrganizer_{id(self)}'
         self.logger = logging.getLogger(logger_name)
         self.logger.setLevel(logging.INFO)
         
-        # 避免重复添加处理器
         if not self.logger.handlers:
-            # 控制台处理器
             console_handler = logging.StreamHandler()
             console_handler.setLevel(logging.INFO)
             formatter = logging.Formatter('%(message)s')
             console_handler.setFormatter(formatter)
             self.logger.addHandler(console_handler)
             
-            # 文件处理器（如果配置了日志文件）
             if self.config.log_file:
                 try:
                     file_handler = logging.FileHandler(
@@ -136,27 +194,31 @@ class PhotoOrganizer:
         # 解析开始日期
         start_date = self.config.parse_start_date()
         
-        # 收集文件
+        # 收集并分组文件
         self.logger.info(f"正在扫描目录: {self.config.source_path}")
-        all_files = list(self._collect_files())
-        self.result.total_files = len(all_files)
+        photo_groups = self._collect_and_group_files()
+        self.result.total_files = sum(len(g.all_files) for g in photo_groups)
         self.logger.info(f"共发现 {self.result.total_files} 个文件")
+        self.logger.info(f"识别为 {len(photo_groups)} 个照片组（含 RAW+JPEG 配对）")
         
-        # 处理文件
-        for i, file_path in enumerate(all_files):
+        # 处理文件组
+        processed_count = 0
+        for group in photo_groups:
             # 检查是否需要停止
             if self._should_stop():
                 self.result.stopped = True
                 self.logger.info("用户已停止处理")
                 break
             
-            self._report_progress(i + 1, self.result.total_files, Path(file_path).name)
+            processed_count += 1
+            self._report_progress(
+                processed_count,
+                len(photo_groups),
+                group.primary_file.filename
+            )
             
-            if not is_photo_file(file_path):
-                continue
-            
-            self.result.photo_files += 1
-            self._process_file(file_path, start_date)
+            self.result.photo_files += len(group.all_files)
+            self._process_group(group, start_date)
         
         self.result.end_time = datetime.datetime.now()
         self._log_summary()
@@ -169,57 +231,159 @@ class PhotoOrganizer:
             return self.stop_callback()
         return False
     
-    def _collect_files(self):
+    def _collect_and_group_files(self) -> list[PhotoGroup]:
         """
-        收集目录下所有文件（生成器）
+        收集文件并按基础名称分组
         
-        Yields:
-            文件路径
+        分组逻辑：
+        1. 相同基础名称的文件归为一组（如 IMG_1234.nef 和 IMG_1234.jpg）
+        2. 如果基础名称不同，但时间戳在容差范围内，也归为一组
+        
+        Returns:
+            PhotoGroup 列表
         """
         source = Path(self.config.source_path)
         if not source.exists():
-            return
+            return []
         
+        # 收集所有照片文件
+        photo_files: list[PhotoFile] = []
         for item in source.rglob('*'):
-            if item.is_file():
-                yield str(item)
+            if item.is_file() and is_photo_file(item.name):
+                photo_files.append(PhotoFile.from_path(str(item)))
+        
+        # 按基础名称分组
+        name_groups: dict[str, list[PhotoFile]] = defaultdict(list)
+        for pf in photo_files:
+            name_groups[pf.base_name].append(pf)
+        
+        # 构建 PhotoGroup 列表
+        groups: list[PhotoGroup] = []
+        used_files: set[str] = set()
+        
+        # 第一轮：按基础名称精确匹配
+        for base_name, files in name_groups.items():
+            raw_files = [f for f in files if f.is_raw]
+            jpeg_files = [f for f in files if f.is_jpeg]
+            
+            group = PhotoGroup(
+                base_name=base_name,
+                raw_files=raw_files,
+                jpeg_files=jpeg_files
+            )
+            groups.append(group)
+            
+            for f in files:
+                used_files.add(f.path)
+        
+        # 第二轮：尝试按时间戳匹配未配对的 RAW 文件
+        unmatched_raw = [
+            g.raw_files[0] for g in groups
+            if not g.is_paired and g.raw_files
+        ]
+        unmatched_jpeg = [
+            g.jpeg_files[0] for g in groups
+            if not g.is_paired and g.jpeg_files
+        ]
+        
+        for raw_file in unmatched_raw:
+            if not raw_file.timestamp:
+                continue
+            
+            for jpeg_file in unmatched_jpeg:
+                if not jpeg_file.timestamp:
+                    continue
+                
+                # 检查时间戳是否在容差范围内
+                time_diff = abs((raw_file.timestamp - jpeg_file.timestamp).total_seconds())
+                if time_diff <= self.TIMESTAMP_TOLERANCE_SECONDS:
+                    # 找到配对，合并到 JPEG 所在的组
+                    for group in groups:
+                        if jpeg_file in group.jpeg_files:
+                            group.raw_files.append(raw_file)
+                            break
+                    
+                    # 从原组中移除
+                    for group in groups:
+                        if raw_file in group.raw_files:
+                            group.raw_files.remove(raw_file)
+                            break
+                    
+                    self.logger.info(
+                        f"时间戳配对: {raw_file.filename} <-> {jpeg_file.filename} "
+                        f"(差异 {time_diff:.1f}秒)"
+                    )
+                    break
+        
+        # 移除空组
+        groups = [g for g in groups if g.all_files]
+        
+        return groups
     
-    def _process_file(self, file_path: str, start_date: datetime.datetime) -> None:
+    def _process_group(self, group: PhotoGroup, start_date: datetime.datetime) -> None:
         """
-        处理单个文件
+        处理一个照片组
         
         Args:
-            file_path: 文件路径
+            group: 照片组
             start_date: 开始日期阈值
         """
-        # 获取照片日期
-        photo_date = get_photo_date(file_path)
+        # 使用主文件的日期
+        primary = group.primary_file
+        photo_date = primary.date
+        
         if not photo_date:
-            self.result.skipped_files += 1
+            self.result.skipped_files += len(group.all_files)
             return
         
         # 检查日期是否在范围内
         try:
             photo_date_obj = datetime.datetime.strptime(photo_date, '%Y%m%d')
             if photo_date_obj < start_date:
-                self.result.skipped_files += 1
+                self.result.skipped_files += len(group.all_files)
                 return
         except ValueError:
             self.logger.warning(f"无效的日期格式: {photo_date}")
-            self.result.skipped_files += 1
+            self.result.skipped_files += len(group.all_files)
             return
         
-        # 计算目标路径
+        # 计算目标目录
         date_dir = os.path.join(self.config.output_path, photo_date)
-        filename = Path(file_path).name
-        dest_path = self._get_unique_path(date_dir, filename)
         
-        # 执行复制或预览
+        # 处理组内所有文件
+        if group.is_paired:
+            self.result.paired_files += 1
+            if self.config.dry_run:
+                self.logger.info(
+                    f"[预览] 配对: {', '.join(f.filename for f in group.all_files)} "
+                    f"-> {photo_date}/"
+                )
+        
+        for photo_file in group.all_files:
+            self._process_file(photo_file, date_dir, photo_date)
+    
+    def _process_file(
+        self,
+        photo_file: PhotoFile,
+        date_dir: str,
+        photo_date: str
+    ) -> None:
+        """
+        处理单个文件
+        
+        Args:
+            photo_file: 照片文件信息
+            date_dir: 目标日期目录
+            photo_date: 日期字符串
+        """
+        dest_path = self._get_unique_path(date_dir, photo_file.filename)
+        
         if self.config.dry_run:
-            self.logger.info(f"[预览] {filename} -> {photo_date}/")
+            if not photo_file.is_raw:  # RAW 文件在配对时已记录
+                self.logger.info(f"[预览] {photo_file.filename} -> {photo_date}/")
             self.result.processed_files += 1
         else:
-            self._copy_file(file_path, dest_path, date_dir)
+            self._copy_file(photo_file.path, dest_path, date_dir)
     
     def _copy_file(self, src: str, dest: str, date_dir: str) -> None:
         """
@@ -244,8 +408,6 @@ class PhotoOrganizer:
     def _get_unique_path(self, directory: str, filename: str) -> str:
         """
         获取唯一文件路径（避免覆盖）
-        
-        如果文件已存在，添加 _1, _2 等后缀。
         
         Args:
             directory: 目标目录
@@ -294,6 +456,7 @@ class PhotoOrganizer:
         self.logger.info(f"成功处理:     {r.processed_files}")
         self.logger.info(f"跳过文件:     {r.skipped_files}")
         self.logger.info(f"失败文件:     {r.failed_files}")
+        self.logger.info(f"RAW+JPEG配对: {r.paired_files}")
         if r.stopped:
             self.logger.info("状态:         用户已停止")
         self.logger.info(f"耗时:         {r.elapsed_str}")
